@@ -75,6 +75,14 @@ Teachable-dl is a Python-based downloader for downloading courses from the Teach
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+<!-- SCREENSHOTS -->
+
+## Screenshots
+
+![image1](https://i.ibb.co/2qYcphV/Screenshot-2024-05-12-182138.png)
+![image2](https://i.ibb.co/hfTX3cY/Screenshot-2024-05-12-182158.png)
+![image3](https://i.ibb.co/B6Y3rTq/Screenshot-2024-05-12-182228.png)
+
 <!-- GETTING STARTED -->
 
 ## Getting Started

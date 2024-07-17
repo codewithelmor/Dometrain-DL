@@ -245,7 +245,7 @@ class ThinkificDownloader:
         #     EC.presence_of_element_located((By.CSS_SELECTOR, ".heading")))
         title = WebDriverWait(self.driver, self.global_timeout).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, '.course-progress__title')))
-        course_title = title.text
+        course_title = title.accessible_name
 
         course_title = clean_string(course_title)
         return course_title
@@ -295,7 +295,7 @@ class ThinkificDownloader:
             # bars = slim_section.find_elements(By.CSS_SELECTOR, ".course-player__chapter-item__contents")
             ul_elem = slim_section.find_element(By.TAG_NAME, "ul")
             bars = ul_elem.find_elements(By.CLASS_NAME, 'course-player__content-item')
-            chapter_title = slim_section.find_element(By.CSS_SELECTOR, "._chapter-item__title_d57kmg").text
+            chapter_title = slim_section.find_element(By.CSS_SELECTOR, "._chapter-item__title_d57kmg").accessible_name
             chapter_title = clean_string(chapter_title)
             chapter_title = "{:02d}-{}".format(chapter_idx, chapter_title)
             logging.info("Found chapter: " + chapter_title)

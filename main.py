@@ -342,7 +342,7 @@ class ThinkificDownloader:
         if self.driver.current_url != dashboard:
             logging.info("Navigating to dashboard: " + dashboard)
             self.driver.get(dashboard)
-            self.driver.implicitly_wait(5)
+            #self.driver.implicitly_wait(5)
         
         div_covers = self.driver.find_elements(By.CLASS_NAME, 'cat-course-card')
         
@@ -373,6 +373,7 @@ class ThinkificDownloader:
                             f.write(response.content)
                         # print a message indicating that the image was downloaded
                         logging.info("Image downloaded successfully.")
+                        break
                     except Exception as e:
                         # print a message indicating that the image download failed
                         logging.warning("Failed to download image:" + str(e))
@@ -415,7 +416,8 @@ class ThinkificDownloader:
                     logging.info("Switching to video frame")
                     self.driver.switch_to.frame(iframe)
 
-                    script_text = self.driver.find_element(By.ID, "w-json-ldwistia_26")
+                    #w-json-ldwistia_26
+                    script_text = self.driver.find_element(By.ID, "w-json-ldwistia_40")
                     json_text = json.loads(script_text.get_attribute("innerHTML"))
                     # link = json_text["props"]["pageProps"]["applicationData"]["mediaAssets"][0]["urlEncrypted"]
                     link = json_text['contentUrl']

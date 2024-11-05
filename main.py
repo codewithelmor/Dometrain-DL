@@ -179,13 +179,19 @@ class ThinkificDownloader:
         if self.check_elem_exists(By.ID, "challenge-stage", timeout=self.global_timeout):
             self.bypass_cloudflare()
 
+        time.sleep(10)
+
         WebDriverWait(self.driver, timeout=15).until(
             EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
+        time.sleep(1)
+
         email_element = WebDriverWait(self.driver, self.global_timeout).until(
             EC.presence_of_element_located((By.ID, "user[email]")))
+        time.sleep(1)
         password_element = WebDriverWait(self.driver, self.global_timeout).until(
             EC.presence_of_element_located((By.ID, "user[password]")))
+        time.sleep(1)
         commit_element = WebDriverWait(self.driver, self.global_timeout).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'button[type="submit"].button.button-primary.g-recaptcha[data-callback="onSubmit"]')))
 
@@ -194,9 +200,13 @@ class ThinkificDownloader:
         email_element.clear()
         self.driver.execute_script("document.getElementById('user[email]').value='" + email + "'")
 
+        time.sleep(1)
+
         password_element.click()
         password_element.clear()
         self.driver.execute_script("document.getElementById('user[password]').value='" + password + "'")
+
+        time.sleep(1)
 
         commit_element.click()
 
@@ -334,6 +344,7 @@ class ThinkificDownloader:
                 video_entity = {"link": link, "title": truncated_title, "idx": idx, "download_path": download_path}
                 video_list.append(video_entity)
                 idx += 1
+            #break
 
         self.download_cover(course_path, slug, dashboard)
         self.download_videos_from_links(video_list)
@@ -343,6 +354,7 @@ class ThinkificDownloader:
             logging.info("Navigating to dashboard: " + dashboard)
             self.driver.get(dashboard)
             #self.driver.implicitly_wait(5)
+            time.sleep(10)
         
         div_covers = self.driver.find_elements(By.CLASS_NAME, 'cat-course-card')
         
@@ -391,6 +403,17 @@ class ThinkificDownloader:
                 self.driver.get(video["link"])
                 self.driver.implicitly_wait(self.global_timeout)
             logging.info("Downloading lecture: " + video["title"])
+
+            time.sleep(10)
+
+            try:
+                if (video["title"] == '' or video["title"] == None or len(video["title"]) == 0):
+                    video_title_raw = self.driver.find_elements(By.CLASS_NAME, 'course-player__content-header__title')[0]
+                    video_title_raw_html = video_title_raw.get_attribute("outerHTML")
+                    video_title_raw_html_soup = BeautifulSoup(video_title_raw_html, 'html.parser')
+                    video["title"] = clean_string(video_title_raw_html_soup.get_text())
+            except Exception as e:
+                pass
 
             # logging.info("Disabling autoplay")
             # self.driver.execute_script('var checkbox = document.getElementById("custom-toggle-autoplay");'

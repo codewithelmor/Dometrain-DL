@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is the contribution guide for Teachable-dl. These guidelines apply to
+This is the contribution guide for Dometrain-DL. These guidelines apply to
 both new issues and new pull requests. If you are making a pull request, please refer to
 the [Pull request](#pull-requests) section, and if you are making an issue report, please
 refer to the [Issue Report](#issues) section, as well as the

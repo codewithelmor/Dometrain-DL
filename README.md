@@ -11,19 +11,19 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/FallingLights/Teachable-Dl">
+  <a href="https://github.com/codewithelmor/Dometrain-DL">
     <img src="images/logo.png" alt="Logo" width="80" height="80">
   </a>
 
-<h3 align="center">Teachable-dl</h3>
+<h3 align="center">Dometrain-DL</h3>
 
   <p align="center">
-    A downloader for downloading courses from the Teachable platforms.
+    A downloader for downloading courses from the Dometrain platform.
     <br />
     <br />
-    <a href="https://github.com/FallingLights/Teachable-Dl/issues">Report Bug</a>
+    <a href="https://github.com/codewithelmor/Dometrain-DL/issues">Report Bug</a>
     ·
-    <a href="https://github.com/FallingLights/Teachable-Dl/issues">Request Feature</a>
+    <a href="https://github.com/codewithelmor/Dometrain-DL/issues">Request Feature</a>
   </p>
 </div>
 
@@ -59,7 +59,7 @@
 
 <!--[![Product Name Screen Shot][product-screenshot]](https://example.com) -->
 
-Teachable-dl is a Python-based downloader for downloading courses from the Teachable platform. It provides a command-line interface for easily downloading course materials such as videos, slides, and other resources, allowing users to access course content offline at their own pace. With Teachable-dl, users can conveniently download and organize all course materials in a single location, enabling easy access and review of course content without the need for an active internet connection.
+Dometrain-DL is a Python-based downloader for downloading courses from the Dometrain platform. It provides a command-line interface for easily downloading course materials such as videos, slides, and other resources, allowing users to access course content offline at their own pace. With Dometrain-DL, users can conveniently download and organize all course materials in a single location, enabling easy access and review of course content without the need for an active internet connection.
 
 ⭐ `Star` this repository if you find it valuable and worth maintaining.
 
@@ -74,6 +74,14 @@ Teachable-dl is a Python-based downloader for downloading courses from the Teach
 - [![yt-dlp][yt-dlp.org]][yt-dlp-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- SCREENSHOTS -->
+
+## Screenshots
+
+![image1](https://i.ibb.co/2qYcphV/Screenshot-2024-05-12-182138.png)
+![image2](https://i.ibb.co/hfTX3cY/Screenshot-2024-05-12-182158.png)
+![image3](https://i.ibb.co/B6Y3rTq/Screenshot-2024-05-12-182228.png)
 
 <!-- GETTING STARTED -->
 
@@ -129,31 +137,31 @@ python3 -m pip install -U yt-dlp
 1. Clone the repo
 
 ```sh
-git clone https://github.com/FallingLights/Teachable-Dl.git
+git clone https://github.com/codewithelmor/Dometrain-DL.git
 ```
 
 2. Enter to the project
 
 ```sh
-cd Teachable-Dl
+cd Dometrain-DL
 ```
 
 3. Set up the environment
 
 ```sh
-python3 -m venv env
+python -m venv env
 ```
 
 4. Activate the environment
 
 ```sh
-source env/bin/activate
+env\Scripts\activate
 ```
 
 5. Install the requirements
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -165,19 +173,13 @@ pip install -r requirements.txt
 Activate the environment
 
 ```sh
-source env/bin/activate
+env\Scripts\activate
 ```
 
 Run the program
 
 ```sh
-python3 main.py --url <course_url> --email <email> --password <password>
-```
-
-or run with manual login
-
-```sh
-python3 main.py --url <course_url> --man_login_url <man_login_url> --verbose
+python main.py --slug <course slug> --dashboard <dashboard page> --url <course url> --login_url <login url> --email <email> --password '<password>'
 ```
 
 > Make sure to navigate to the url within the first tab and check the console for an exact url match.
@@ -191,7 +193,7 @@ python main.py --help
 
 ## Roadmap
 
-See the [open issues](https://github.com/FallingLights/Teachable-Dl/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/codewithelmor/Dometrain-DL/issues) for a full list of proposed features (and known issues).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -224,9 +226,9 @@ Distributed under the GNU LGPLv3 License. See `LICENSE.txt` for more information
 
 ## Contact
 
-[@fallinglight_s](https://twitter.com/fallinglight_s)
+[LinkedIn](https://www.linkedin.com/in/elmor-c-77550a111/)
 
-Project Link: [https://github.com/FallingLights/Teachable-Dl](https://github.com/FallingLights/Teachable-Dl)
+Project Link: [https://github.com/codewithelmor/Dometrain-DL](https://github.com/codewithelmor/Dometrain-DL)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -237,21 +239,25 @@ Project Link: [https://github.com/FallingLights/Teachable-Dl](https://github.com
 - [merberich](https://github.com/merberich)
 - [Green0Photon](https://github.com/Green0Photon)
 
+## Usage Notes
+
+- [Password with Dollar Sign ($)](https://stackoverflow.com/questions/37278749/python-argparse-stops-parsing-after-it-encounters)
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
-[contributors-shield]: https://img.shields.io/github/contributors/FallingLights/Teachable-Dl.svg?style=for-the-badge
-[contributors-url]: https://github.com/FallingLights/Teachable-Dl/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/FallingLights/Teachable-Dl.svg?style=for-the-badge
-[forks-url]: https://github.com/FallingLights/Teachable-Dl/network/members
-[stars-shield]: https://img.shields.io/github/stars/FallingLights/Teachable-Dl.svg?style=for-the-badge
-[stars-url]: https://github.com/FallingLights/Teachable-Dl/stargazers
-[issues-shield]: https://img.shields.io/github/issues/FallingLights/Teachable-Dl.svg?style=for-the-badge
-[issues-url]: https://github.com/FallingLights/Teachable-Dl/issues
-[license-shield]: https://img.shields.io/github/license/FallingLights/Teachable-Dl.svg?style=for-the-badge
-[license-url]: https://github.com/FallingLights/Teachable-Dl/blob/master/LICENSE.txt
+[contributors-shield]: https://img.shields.io/github/contributors/codewithelmor/Dometrain-DL.svg?style=for-the-badge
+[contributors-url]: https://github.com/codewithelmor/Dometrain-DL/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/codewithelmor/Dometrain-DL.svg?style=for-the-badge
+[forks-url]: https://github.com/codewithelmor/Dometrain-DL/network/members
+[stars-shield]: https://img.shields.io/github/stars/codewithelmor/Dometrain-DL.svg?style=for-the-badge
+[stars-url]: https://github.com/codewithelmor/Dometrain-DL/stargazers
+[issues-shield]: https://img.shields.io/github/issues/codewithelmor/Dometrain-DL.svg?style=for-the-badge
+[issues-url]: https://github.com/codewithelmor/Dometrain-DL/issues
+[license-shield]: https://img.shields.io/github/license/codewithelmor/Dometrain-DL.svg?style=for-the-badge
+[license-url]: https://github.com/codewithelmor/Dometrain-DL/blob/master/LICENSE.txt
 [product-screenshot]: images/screenshot.png
 [Python.org]: https://img.shields.io/badge/Python-14354C?style=for-the-badge&logo=python&logoColor=white
 [Python-url]: https://www.python.org

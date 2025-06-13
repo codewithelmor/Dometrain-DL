@@ -1,7 +1,9 @@
 import argparse
+from bs4 import BeautifulSoup
 import json
 import logging
 import os
+import shutil
 import re
 import string
 import sys
@@ -18,6 +20,18 @@ from selenium.webdriver.remote.webdriver import By
 from selenium.webdriver.support.wait import WebDriverWait
 from seleniumbase import Driver
 
+video_attachments = []
+
+
+def get_files_in_directory(directory):
+    files = []
+    # Walk through the directory tree
+    for dirpath, _, filenames in os.walk(directory):
+        # Append each file to the list
+        for filename in filenames:
+            files.append(os.path.join(dirpath, filename))
+    return files
+
 
 def create_folder(course_title):
     root_path = os.path.abspath(os.getcwd())
@@ -31,9 +45,10 @@ def clean_string(data):
     # Remove all non-ASCII characters (including emojis)
     data = data.encode('ascii', 'ignore').decode('ascii')
     # Replace specific characters with "-"
-    return data.replace("\n", "-").replace(" ", "-").replace(":", "-") \
-        .replace("/", "-").replace("|", "-").replace("*", "").replace("?", "-").replace("<", "-") \
-        .replace(">", "-").replace("\"", "-").replace("\\", "-")
+    data = data.replace(" ", "-").replace("\n", "").replace(":", "") \
+        .replace("/", "").replace("|", "").replace("*", "").replace("?", "").replace("<", "") \
+        .replace(">", "").replace("\"", "").replace("\\", "")
+    return data.strip('-')
 
 
 def truncate_title_to_fit_file_name(title, max_file_name_length=250):
@@ -47,7 +62,7 @@ def truncate_title_to_fit_file_name(title, max_file_name_length=250):
     return title
 
 
-class TeachableDownloader:
+class DometrainDownloader:
     def __init__(self, verbose_arg=False, complete_lecture_arg=False, user_agent_arg=None, timeout_arg=10):
         self.driver = Driver(uc=True, headed=True)
         self.headers = {
@@ -104,7 +119,7 @@ class TeachableDownloader:
             logging.info("No need to bypass cloudflare")
             return
 
-    def run(self, course_url, email, password, login_url, man_login_url):
+    def run(self, chapters, slug, dashboard, course_url, email, password, login_url, man_login_url):
         logging.info("Starting login")
 
         if man_login_url is None:
@@ -131,57 +146,9 @@ class TeachableDownloader:
 
         logging.info("Starting download of course: " + course_url)
         try:
-            self.pick_course_downloader(course_url)
+            self.pick_course_downloader(chapters, slug, dashboard, course_url)
         except Exception as e:
             logging.error("Could not download course: " + course_url + " cause: " + str(e))
-
-    def run_batch(self, url_array, email, password, login_url, man_login_url):
-        """
-        This method handles batch downloading of courses. It navigates to the given URLs, logs in if necessary,
-        and initiates the download process for each course.
-
-        :param url_array: List[str]
-            An array of URLs pointing to the courses that need to be downloaded.
-        :param email: str
-            The email address used to log in to the platform.
-        :param password: str
-            The password associated with the provided email address.
-        :param login_url: str
-            The URL of the login page. If not provided, manual login is assumed.
-        :param man_login_url: str
-            The URL of the page to navigate to after manual login. This parameter is optional.
-            If provided, the script will wait until the user has manually navigated to this URL
-            before starting the download process.
-        :return: None
-        """
-        logging.info("Starting login")
-
-        if man_login_url is None:
-            # Check if login_url is not set
-            if login_url is not None:
-                self.driver.get(login_url)
-            else:
-                logging.error("Login url is not set")
-                return
-
-            try:
-                self.login(email, password)
-            except Exception as e:
-                logging.error("Could not login: " + str(e), exc_info=self.verbose)
-                return
-        else:
-            self.driver.get(url_array[0])
-            while self.driver.current_url != man_login_url:
-                time.sleep(3)
-                logging.info("Waiting for user to navigate to url: " + man_login_url)
-                logging.info("Current url: " + self.driver.current_url)
-
-        logging.info("Running batch download of courses ")
-        for url in url_array:
-            try:
-                self.pick_course_downloader(url)
-            except Exception as e:
-                logging.error("Could not download course: " + url + " cause: " + str(e))
 
     def construct_sign_in_url(self, course_url):
         parsed_url = urlparse(course_url)
@@ -213,55 +180,43 @@ class TeachableDownloader:
         if self.check_elem_exists(By.ID, "challenge-stage", timeout=self.global_timeout):
             self.bypass_cloudflare()
 
+        time.sleep(10)
+
         WebDriverWait(self.driver, timeout=15).until(
             EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
+        time.sleep(1)
+
         email_element = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_element_located((By.ID, "email")))
+            EC.presence_of_element_located((By.ID, "user[email]")))
+        time.sleep(1)
         password_element = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_element_located((By.ID, "password")))
+            EC.presence_of_element_located((By.ID, "user[password]")))
+        time.sleep(1)
         commit_element = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_element_located((By.NAME, "commit")))
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'button[type="submit"].button.button-primary.g-recaptcha[data-callback="onSubmit"]')))
 
         logging.debug("Filling in login form")
         email_element.click()
         email_element.clear()
-        self.driver.execute_script("document.getElementById('email').value='" + email + "'")
+        self.driver.execute_script("document.getElementById('user[email]').value='" + email + "'")
+
+        time.sleep(1)
 
         password_element.click()
         password_element.clear()
-        self.driver.execute_script("document.getElementById('password').value='" + password + "'")
+        self.driver.execute_script("document.getElementById('user[password]').value='" + password + "'")
+
+        time.sleep(1)
 
         commit_element.click()
 
-        # Check for login error due to incorrect credentials
-        logging.debug("Checking for login error")
-        try:
-            error_elements = WebDriverWait(self.driver, self.global_timeout).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.toast, span.text-with-icon"))
-            )
-            for element in error_elements:
-                if "Your email or password is incorrect" in element.text:
-                    logging.error("Login failed: Incorrect email or password.")
-                    return False
-        except TimeoutException:
-            # No error message found, continue
-            pass
+        pause_seconds = 30
+        time.sleep(pause_seconds)
 
-        # Check for new device challenge
-        # input with name otp_code
-        if self.check_elem_exists(By.NAME, "otp_code", timeout=self.global_timeout):
-            # wait for user to enter code
-            input(
-                "\033[93mWarning: New device challenge\nplease enter the code sent to your email and press enter to "
-                "continue\033[0m"
-            )
-        logging.info("Logged in, switching to course page")
-        time.sleep(3)
-
-    def pick_course_downloader(self, course_url):
+    def pick_course_downloader(self, chapters, slug, dashboard, course_url):
         # Check if we are already on the course page
-        if not self.driver.current_url == course_url:
+        if not course_url in str(self.driver.current_url):
             logging.info("Switching to course page")
             self.driver.get(course_url)
             if self.check_elem_exists(By.ID, "challenge-stage", timeout=self.global_timeout):
@@ -272,185 +227,37 @@ class TeachableDownloader:
 
         # https://support.teachable.com/hc/en-us/articles/360058715732-Course-Design-Templates
         logging.info("Picking course downloader")
-        if self.driver.find_elements(By.ID, "__next"):
+        if self.driver.find_elements(By.CSS_SELECTOR, 'button[data-qa="complete-continue__btn"].brand-color__background.brand-color__dynamic-text._button--default--small_142a8m._button--icon-right--small_142a8m[data-ember-action=""]'):
             logging.info('Choosing __next format')
-            self.download_course_simple(course_url)
-        elif self.driver.find_elements(By.CLASS_NAME, "course-mainbar"):
-            logging.info('Choosing course-mainbar format')
-            self.download_course_classic(course_url)
-        elif self.driver.find_elements(By.CSS_SELECTOR, ".block__curriculum"):
-            logging.info('Choosing .block__curriculum format')
-            self.download_course_colossal(course_url)
+            self.download_course_simple(chapters, slug, dashboard, course_url)
+
+            # move attachmets to folders
+            if len(video_attachments) > 0:
+                root_path = os.path.abspath(os.getcwd())
+                downloaded_files_path = os.path.join(root_path, "downloaded_files")
+                files_list = get_files_in_directory(downloaded_files_path)
+                for file in files_list:
+                    for video_attachment in video_attachments:
+                        if video_attachment["file_name"] in file:
+                            file_path = os.path.join(video_attachment["file_path"], video_attachment["file_name"])
+                            # Move the file to the destination directory
+                            shutil.move(file, file_path)
+                            break
         else:
             logging.error("Downloader does not support this course template. Please open an issue on github.")
-
-    def download_course_colossal(self, course_url):
-        logging.info("Detected block course format")
-        try:
-            logging.info("Getting course title")
-            course_title = WebDriverWait(self.driver, self.global_timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".course__title"))
-            ).text
-        except Exception as e:
-            logging.warning("Could not get course title, using tab title instead")
-            course_title = self.driver.title
-
-        course_title = clean_string(course_title)
-        course_path = create_folder(course_title)
-
-        logging.info("Saving course html")
-        try:
-            output_file = os.path.join(course_path, "course.html")
-            with open(output_file, 'w+') as f:
-                f.write(self.driver.page_source)
-        except Exception as e:
-            logging.error("Could not save course html: " + str(e), exc_info=self.verbose)
-
-        # Unhide all elements
-        logging.info("Unhiding all elements")
-        self.driver.execute_script('[...document.querySelectorAll(".hidden")].map(e=>e.classList.remove("hidden"))')
-
-        chapter_idx = 1
-        video_list = []
-        sections = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".block__curriculum__section"))
-        )
-
-        for section in sections:
-            chapter_title = section.find_element(By.CSS_SELECTOR, ".block__curriculum__section__title").text
-            chapter_title = clean_string(chapter_title)
-            chapter_title = "{:02d}-{}".format(chapter_idx, chapter_title)
-            logging.info("Found chapter: " + chapter_title)
-
-            download_path = os.path.join(course_path, chapter_title)
-            os.makedirs(download_path, exist_ok=True)
-
-            chapter_idx += 1
-            idx = 1
-
-            section_items = section.find_elements(By.CSS_SELECTOR, ".block__curriculum__section__list__item__link")
-            for section_item in section_items:
-                lecture_link = section_item.get_attribute("href")
-
-                lecture_title = section_item.find_element(By.CSS_SELECTOR,
-                                                          ".block__curriculum__section__list__item__lecture-name").text
-                lecture_title = clean_string(lecture_title)
-                lecture_title = ''.join(char for char in lecture_title if char in string.printable)
-                logging.info("Found lecture: " + lecture_title)
-
-                truncated_lecture_title = truncate_title_to_fit_file_name(lecture_title)
-
-                video_entity = {"link": lecture_link, "title": truncated_lecture_title, "idx": idx,
-                                "download_path": download_path}
-                video_list.append(video_entity)
-                idx += 1
-
-        self.download_videos_from_links(video_list)
-
-    def download_course_classic(self, course_url):
-        # self.driver.find_elements(By.CLASS_NAME, "course-mainbar")
-        logging.info("Detected _mainbar course format")
-        try:
-            logging.debug("Getting course title")
-            course_title = WebDriverWait(self.driver, self.global_timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "body > section > div.course-sidebar > div > h2"))
-            ).text
-        except Exception as e:
-            logging.warning("Could not get course title, using tab title instead")
-            course_title = self.driver.title
-
-        logging.debug("Found course title: \"" + course_title + "\" starting cleaning of title string")
-        course_title = clean_string(course_title)
-        logging.info("Found course title: " + course_title)
-        course_path = create_folder(course_title)
-
-        try:
-            logging.debug("Saving course html")
-            output_file = os.path.join(course_path, "course.html")
-            with open(output_file, 'w+', encoding="utf-8") as f:
-                f.write(self.driver.page_source)
-        except Exception as e:
-            logging.error("Could not save course html: " + str(e), exc_info=self.verbose)
-
-        # Get course image
-
-        try:
-            image_element = self.driver.find_elements(By.CLASS_NAME, "course-image")
-            logging.info("Found course image")
-            image_link = image_element[0].get_attribute("src")
-            image_link_hd = re.sub(r"/resize=.+?/", "/", image_link)
-            # try to download the image using the modified link first
-            response = requests.get(image_link_hd)
-            if response.ok:
-                # save the image to disk
-                image_path = os.path.join(course_path, "course-image.jpg")
-                with open(image_path, "wb") as f:
-                    f.write(response.content)
-                logging.info("Image downloaded successfully.")
-            else:
-                # try to download the image using the original link
-                response = requests.get(image_link)
-                if response.ok:
-                    # save the image to disk
-                    image_path = os.path.join(course_path, "course-image.jpg")
-                    with open(image_path, "wb") as f:
-                        f.write(response.content)
-                    logging.info("Image downloaded successfully.")
-                else:
-                    # print a message indicating that the image download failed
-                    logging.warning("Failed to download image.")
-        except Exception as e:
-            logging.warning("Could not find course image: " + str(e))
-            pass
-
-        chapter_idx = 1
-        video_list = []
-        sections = WebDriverWait(self.driver, 10).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".course-section"))
-        )
-        for section in sections:
-            chapter_title = section.find_element(By.CSS_SELECTOR, ".section-title").text
-            chapter_title = clean_string(chapter_title)
-            chapter_title = chapter_title = "{:02d}-{}".format(chapter_idx, chapter_title)
-            logging.info("Found chapter: " + chapter_title)
-
-            download_path = os.path.join(course_path, chapter_title)
-            os.makedirs(download_path, exist_ok=True)
-
-            chapter_idx += 1
-            idx = 1
-
-            section_items = section.find_elements(By.CSS_SELECTOR, ".section-item")
-            for section_item in section_items:
-                lecture_link = section_item.find_element(By.CLASS_NAME, "item").get_attribute("href")
-
-                lecture_title = section_item.find_element(By.CLASS_NAME, "lecture-name").text
-                lecture_title = clean_string(lecture_title)
-                logging.info("Found lecture: " + lecture_title)
-
-                truncated_lecture_title = truncate_title_to_fit_file_name(lecture_title)
-
-                video_entity = {"link": lecture_link, "title": truncated_lecture_title, "idx": idx,
-                                "download_path": download_path}
-                video_list.append(video_entity)
-                idx += 1
-
-        self.download_videos_from_links(video_list)
-
+    
     def get_course_title_next(self, course_url):
-        if self.driver.current_url != course_url:
+        if not course_url in str(self.driver.current_url):
             self.driver.get(course_url)
 
-        wrap = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".wrap")))
-        heading = WebDriverWait(self.driver, self.global_timeout).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".heading")))
-        course_title = heading.text
+        title = WebDriverWait(self.driver, self.global_timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '.course-progress__title')))
+        course_title = title.accessible_name
 
         course_title = clean_string(course_title)
         return course_title
 
-    def download_course_simple(self, course_url):
+    def download_course_simple(self, chapters, slug, dashboard, course_url):
         self.driver.implicitly_wait(2)
         logging.info("Detected next course format")
         course_title = self.get_course_title_next(course_url)
@@ -464,36 +271,24 @@ class TeachableDownloader:
         except Exception as e:
             logging.error("Could not save course html: " + str(e), exc_info=self.verbose)
 
-        # Download course image
-        try:
-            logging.info("Downloading course image")
-            image_element = self.driver.find_element(By.XPATH, "//*[@id=\"__next\"]/div/div/div[2]/div/div[1]/img")
-            logging.info("Found course image")
-            image_link = image_element.get_attribute("src")
-            # Save image
-            image_path = os.path.join(course_path, "course-image.jpg")
-            # send a GET request to the image link
-            try:
-                response = requests.get(image_link)
-                # write the image data to a file
-                with open(image_path, "wb") as f:
-                    f.write(response.content)
-                # print a message indicating that the image was downloaded
-                logging.info("Image downloaded successfully.")
-            except Exception as e:
-                # print a message indicating that the image download failed
-                logging.warning("Failed to download image:" + str(e))
-        except Exception as e:
-            logging.warning("Could not find course image: " + str(e))
-            pass
+        chapters_array = []
+        if len(chapters.strip()) > 0:
+            if chapters != "all":
+                chapters_array = [int(chapter.strip()) for chapter in chapters.split(",")]
 
         chapter_idx = 0
         video_list = []
-        slim_sections = self.driver.find_elements(By.CSS_SELECTOR, ".slim-section")
+        slim_sections = self.driver.find_elements(By.CSS_SELECTOR, ".course-player__chapters-item")
         for slim_section in slim_sections:
             chapter_idx += 1
-            bars = slim_section.find_elements(By.CSS_SELECTOR, ".bar")
-            chapter_title = slim_section.find_element(By.CSS_SELECTOR, ".heading").text
+
+            if len(chapters_array) > 0:
+                if chapter_idx not in chapters_array:
+                    continue
+            
+            ul_elem = slim_section.find_element(By.TAG_NAME, "ul")
+            bars = ul_elem.find_elements(By.CLASS_NAME, 'course-player__content-item')
+            chapter_title = slim_section.find_element(By.CSS_SELECTOR, "._chapter-item__title_d57kmg").accessible_name
             chapter_title = clean_string(chapter_title)
             chapter_title = "{:02d}-{}".format(chapter_idx, chapter_title)
             logging.info("Found chapter: " + chapter_title)
@@ -507,22 +302,79 @@ class TeachableDownloader:
                 logging.info("Chapter is available")
                 pass  # Element wasn't found so the chapter is available
 
+            chapter_title = str(chapter_title).strip('-')
             download_path = os.path.join(course_path, chapter_title)
             os.makedirs(download_path, exist_ok=True)
 
             idx = 1
             for bar in bars:
-                video = bar.find_element(By.CSS_SELECTOR, ".text")
+                time.sleep(5)
+                video = bar.find_element(By.CSS_SELECTOR, ".course-player__content-item__link")
+                
                 link = video.get_attribute("href")
-                # Remove new line characters from the title and replace spaces with -
-                title = clean_string(video.text)
+
+                video_title = video.find_element(By.CLASS_NAME, "content-item__title")
+                video_title_html = video_title.get_attribute("outerHTML")
+                video_title_soup = BeautifulSoup(video_title_html, 'html.parser')
+                title_text = video_title_soup.get_text()
+                title_text_split = title_text.split()
+                # Find index of "Video"
+                title_text_split_video_index = title_text_split.index("Video")
+                # Concatenate items before "Video"
+                title_raw = " ".join(title_text_split[:title_text_split_video_index])
+                title = clean_string(title_raw)
+                title = str(title).strip('-')
+
                 logging.info("Found lecture: " + title)
                 truncated_title = truncate_title_to_fit_file_name(title)
                 video_entity = {"link": link, "title": truncated_title, "idx": idx, "download_path": download_path}
                 video_list.append(video_entity)
                 idx += 1
 
+        # Download course image
+        self.download_cover(course_path, slug, dashboard)
+
+        # Download course videos
         self.download_videos_from_links(video_list)
+    
+    def download_cover(self, course_path, slug, dashboard):
+        if self.driver.current_url != dashboard:
+            logging.info("Navigating to dashboard: " + dashboard)
+            self.driver.get(dashboard)
+            
+            time.sleep(10)
+        
+        div_covers = self.driver.find_elements(By.CLASS_NAME, 'cat-course-card')
+        
+        for div_cover in div_covers:
+            div_cover_href = div_cover.get_attribute("data-href")
+            if slug in div_cover_href:
+                img_cover = div_cover.find_element(By.TAG_NAME, 'img')
+                image_link = img_cover.get_attribute("src")
+
+                # Download course image
+                try:
+                    logging.info("Downloading course image")
+                    # Save image
+                    image_path = os.path.join(course_path, "course-image.jpg")
+                    # send a GET request to the image link
+                    try:
+                        response = requests.get(image_link)
+                        # write the image data to a file
+                        with open(image_path, "wb") as f:
+                            f.write(response.content)
+                        # print a message indicating that the image was downloaded
+                        logging.info("Image downloaded successfully.")
+                        break
+                    except Exception as e:
+                        # print a message indicating that the image download failed
+                        logging.warning("Failed to download image:" + str(e))
+                except Exception as e:
+                    logging.warning("Could not find course image: " + str(e))
+                    pass
+                            
+            # else:
+            #     print("No background image URL found.")
 
     def download_videos_from_links(self, video_list):
         for video in video_list:
@@ -532,9 +384,15 @@ class TeachableDownloader:
                 self.driver.implicitly_wait(self.global_timeout)
             logging.info("Downloading lecture: " + video["title"])
 
-            # logging.info("Disabling autoplay")
-            # self.driver.execute_script('var checkbox = document.getElementById("custom-toggle-autoplay");'
-            #                            'if (checkbox.checked) {checkbox.click();}')
+            time.sleep(10)
+
+            # try:                
+            #     video_title_raw = self.driver.find_elements(By.CLASS_NAME, 'course-player__content-header__title')[0]
+            #     video_title_raw_html = video_title_raw.get_attribute("outerHTML")
+            #     video_title_raw_html_soup = BeautifulSoup(video_title_raw_html, 'html.parser')
+            #     video["title"] = clean_string(video_title_raw_html_soup.get_text())
+            # except Exception as e:
+            #     pass
 
             try:
                 logging.info("Saving html")
@@ -547,25 +405,18 @@ class TeachableDownloader:
                 self.download_attachments(video["link"], video["title"], video["idx"], video["download_path"])
             except Exception as e:
                 logging.warning("Could not download attachments: " + video["title"] + " cause: " + str(e))
-            
-            try:
-                logging.debug("Trying to download video as an attachment")
-                if self.download_video_file(video["title"], video["idx"], video["download_path"]):
-                    continue
 
-            except Exception as e:
-                logging.debug("Could not download video as an attachment: " + video["title"] + " cause: " + str(e))
-
-            video_iframes = self.driver.find_elements(By.XPATH, "//iframe[starts-with(@data-testid, 'embed-player')]")
+            video_iframes = self.driver.find_elements(By.XPATH, "//iframe[@title='Video Lesson']")
 
             for i, iframe in enumerate(video_iframes):
                 try:
                     logging.info("Switching to video frame")
                     self.driver.switch_to.frame(iframe)
 
-                    script_text = self.driver.find_element(By.ID, "__NEXT_DATA__")
+                    #w-json-ldwistia_26
+                    script_text = self.driver.find_element(By.ID, "w-json-ldwistia_40")
                     json_text = json.loads(script_text.get_attribute("innerHTML"))
-                    link = json_text["props"]["pageProps"]["applicationData"]["mediaAssets"][0]["urlEncrypted"]
+                    link = json_text['contentUrl']
 
                     # Append -n to the video title if there are multiple iframes
                     video_title = video["title"] + ("-" + str(i + 1) if len(video_iframes) > 1 else "")
@@ -689,88 +540,26 @@ class TeachableDownloader:
                 except Exception as e:
                     logging.warning("Could not download subtitle: " + title + " cause: " + str(e))
                 logging.info("Downloaded subtitle: " + subtitle_filename)
-                
-    def download_video_file(self, title, video_index, output_path, timeout=-1):
-        video_title = "{:02d}-{}".format(video_index, title)
 
-        # Grab the video attachments type video
-        video_attachment = self.driver.find_element(By.CLASS_NAME, "lecture-attachment-type-video")
-
-        if not video_attachment:
-            logging.debug(f"No video attachment found for lecture: {title}")
-            return False
-
-        video_link = video_attachment.find_element(By.TAG_NAME, "a")
-
-        if not video_link:
-            logging.debug(f"No video link found for lecture: {title}")
-            return False
-
-        # Set the download directory for this file
-        self.driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-            "behavior": "allow",
-            "downloadPath": output_path
-        })
-        # Get list of files before download
-        files_before_download = set(os.listdir(output_path))
-
-        # Click the link to trigger download
-        video_link.click()
-
-        # Wait for download to complete
-        start_time = time.time()
-        while True:
-            files_after_download = set(os.listdir(output_path))
-
-            # Find new files
-            new_files = files_after_download - files_before_download
-
-            if len(new_files) == 1 and not list(new_files)[0].endswith('.crdownload'):
-                break
-            
-            if timeout > 0 and (time.time() - start_time) > timeout:
-                logging.warning(f"Download timeout for lecture: {title}")
-                return False
-        
-            time.sleep(1)
-
-        latest_file = os.path.join(output_path, list(new_files)[0])
-                
-        # Determine the file extension
-        _, extension = os.path.splitext(latest_file)
-        
-        # Create the new filename
-        new_filename = f"{video_title}{extension}"
-        new_filepath = os.path.join(output_path, new_filename)
-        
-        # Rename the file
-        os.rename(latest_file, new_filepath)
-        logging.info(f"Downloaded video file {new_filename}")
-        return True
-    
     def download_attachments(self, link, title, video_index, output_path):
         video_title = "{:02d}-{}".format(video_index, title)
 
-        # Grab the video attachments type file
-        video_attachments = self.driver.find_elements(By.CLASS_NAME, "lecture-attachment-type-file")
-        # Get all links from the video attachments
+        try:
+            ul_attachment = self.driver.find_element(By.CLASS_NAME, 'course-player__download-files__list')
+            if ul_attachment:
+                file_output_path = os.path.join(output_path, video_title)
+                os.makedirs(file_output_path, exist_ok=True)
 
-        if video_attachments:
-            video_links = video_attachments[0].find_elements(By.TAG_NAME, "a")
-
-            output_path = os.path.join(output_path, video_title)
-            os.makedirs(output_path, exist_ok=True)
-
-            # Get href attribute from the first link
-            if video_links:
-                for video_link in video_links:
-                    link = video_link.get_attribute("href")
-                    file_name = video_link.text
-                    logging.info("Downloading attachment: " + file_name + " for video: " + title)
-                    # Download file and save the file in output_path directory
-                    wget.download(link, out=output_path)
-        else:
-            logging.warning("No attachments found for video: " + title)
+                li_attachments = ul_attachment.find_elements(By.TAG_NAME, 'li')
+                for li_attachment in li_attachments:
+                    attachment_link = li_attachment.find_element(By.TAG_NAME, 'a')
+                    attachment_link.click()
+                    
+                    attachment_title = li_attachment.find_element(By.CLASS_NAME, 'course-player__download-files__label')
+                    attachment_title_final = attachment_title.text
+                    video_attachments.append({ "file_path": file_output_path, "file_name": attachment_title_final})
+        except Exception as err:
+            pass
 
     def save_webpage_as_html(self, title, video_index, output_path):
         output_file = os.path.join(output_path, "{:02d}-{}.html".format(video_index, title))
@@ -820,7 +609,10 @@ def check_required_args(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog='Teachable-Dl', description='Download courses', )
+    parser = argparse.ArgumentParser(prog='Dometrain-Dl', description='Download courses', )
+    parser.add_argument("--chapters", required=False, default='all', help='Specific chapters of the course to download e.g. 1,2')
+    parser.add_argument("--slug", required=False, help='Slug of the course')
+    parser.add_argument("--dashboard", required=False, help='Dashboard of the site')
     parser.add_argument("--url", required=False, help='URL of the course')
     parser.add_argument("-e", "--email", required=False, help='Email of the account')
     parser.add_argument("-p", "--password", required=False, help='Password of the account')
@@ -831,7 +623,6 @@ if __name__ == "__main__":
     parser.add_argument("--login_url", required=False, help='(Optional) URL to teachable SSO login page')
     parser.add_argument("--man_login_url", required=False,
                         help='Login manually and start downloading when this url is reached')
-    parser.add_argument("-f", "--file", required=False, help='Path to a text file that contains URLs')
     parser.add_argument("--user-agent", required=False, help='User agent to use when downloading videos',
                         default="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                                 "Chrome/116.0.0.0 Safari/537.36")
@@ -852,37 +643,23 @@ if __name__ == "__main__":
         logging.error("Required arguments are missing. Choose email/password or manual login (man_login_url).")
         exit(1)
 
-    downloader = TeachableDownloader(verbose_arg=verbose, complete_lecture_arg=args.complete_lecture,
+    downloader = DometrainDownloader(verbose_arg=verbose, complete_lecture_arg=args.complete_lecture,
                                      user_agent_arg=args.user_agent, timeout_arg=args.timeout)
-    if args.file:
-        urls = read_urls_from_file(args.file)
-        try:
-            downloader.run_batch(urls, args.email, args.password, args.login_url, args.man_login_url)
-            downloader.clean_up()
-            sys.exit(0)
-        except KeyboardInterrupt:
-            logging.error("Interrupted by user")
-            downloader.clean_up()
-            sys.exit(1)
-        except Exception as e:
-            logging.error("Error: " + str(e))
-            downloader.clean_up()
-            sys.exit(1)
-    else:
-        # Check if url argument is passed
-        if not args.url:
-            logging.error("URL is required")
-            sys.exit(1)
-        try:
-            downloader.run(course_url=args.url, email=args.email, password=args.password, login_url=args.login_url,
-                           man_login_url=args.man_login_url)
-            downloader.clean_up()
-            sys.exit(0)
-        except KeyboardInterrupt:
-            logging.error("Interrupted by user")
-            downloader.clean_up()
-            sys.exit(1)
-        except Exception as e:
-            logging.error("Error: " + str(e))
-            downloader.clean_up()
-            sys.exit(1)
+
+    # Check if url argument is passed
+    if not args.url:
+        logging.error("URL is required")
+        sys.exit(1)
+    try:
+        downloader.run(chapters=args.chapters, slug=args.slug, dashboard=args.dashboard, course_url=args.url, email=args.email, password=args.password, login_url=args.login_url,
+                        man_login_url=args.man_login_url)
+        downloader.clean_up()
+        sys.exit(0)
+    except KeyboardInterrupt:
+        logging.error("Interrupted by user")
+        downloader.clean_up()
+        sys.exit(1)
+    except Exception as e:
+        logging.error("Error: " + str(e))
+        downloader.clean_up()
+        sys.exit(1)
